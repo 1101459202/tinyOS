@@ -45,7 +45,7 @@ void tTaskRunFirst(void)
 	MEM32(NVIC_INIT_CTRL) = NVIC_PENDSVSET;
 }
 
-void tTaskSwitch(void)
+void tTaskSwitch(void)//¥•∑¢penSV“Ï≥£
 {
 	MEM32(NVIC_INIT_CTRL) = NVIC_PENDSVSET;
 }
