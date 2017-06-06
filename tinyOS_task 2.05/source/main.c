@@ -6,6 +6,7 @@ tTask *currentTask;
 tTask *nextTask;
 tTask *taskTable[2];
 tTask *idleTask;
+uint32_t tickCounter;
 //缓存区保存r4-r7
 unsigned long stackBuffer[1024];
 
@@ -68,7 +69,10 @@ void tSetSysTickPeriod (uint32_t ms)//初始化定时器
 
 void tTaskDelay(uint32_t delay)//延时函数
 {
+	uint32_t status = tTaskEnterCritical();//保护临界区
 	currentTask->delayTicks = delay;
+	
+	tTaskExitCritical(status);//恢复临界区
 	tTaskSched();//任务调度函数
 }
 /****************入口任务 ****************/
@@ -92,6 +96,19 @@ void task2Entry (void * param)
 {
 	for(;;)
 	{
+		uint32_t i;
+		
+		uint32_t status = tTaskEnterCritical();//保护临界区
+		
+		uint32_t counter = tickCounter;
+		for(i = 0; i < 0xFFFF;i++)
+		{
+			;
+		}
+		tickCounter = counter + 1;
+		
+		tTaskExitCritical(status);//恢复临界区
+		
 		task2Flag = 0;
 		tTaskDelay(1);
 		task2Flag = 1;
@@ -119,6 +136,8 @@ void SysTick_Handler()//中断时间到调用
 void tTaskSystemTickHandler()//时间处理函数
 {
 	int i;
+	
+	uint32_t status = tTaskEnterCritical();
 	for(i = 0;i < 2;i++)
 	{
 		if(taskTable[i]->delayTicks > 0)
@@ -126,13 +145,11 @@ void tTaskSystemTickHandler()//时间处理函数
 			taskTable[i]->delayTicks--;
 		}
 	}
+	tickCounter++;
+	tTaskExitCritical(status);
+	
 	tTaskSched();//任务调度函数
 }
-
-
-
-
-
 
 void tTaskSched()//任务调度函数
 {
@@ -144,6 +161,7 @@ void tTaskSched()//任务调度函数
 //	{
 //		nextTask = taskTable[0];
 //	}
+	uint32_t status = tTaskEnterCritical();//保护临界区
 	
 	if(currentTask == idleTask)//如果是空闲任务
 	{
@@ -157,6 +175,7 @@ void tTaskSched()//任务调度函数
 		}
 		else//延时完毕
 		{
+			tTaskExitCritical(status);
 			return;
 		}
 	}
@@ -174,6 +193,7 @@ void tTaskSched()//任务调度函数
 			}
 			else
 			{
+				tTaskExitCritical(status);
 				return;
 			}
 		}
@@ -189,11 +209,13 @@ void tTaskSched()//任务调度函数
 			}
 			else
 			{
+				tTaskExitCritical(status);
 				return;
 			}
 		}
 	}
 	tTaskSwitch();//触发penSV异常
+	tTaskExitCritical(status);
 }
 
 
