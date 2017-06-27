@@ -97,6 +97,16 @@ void tListAddFirst (tList *list,tNode * node)
 	list->nodeCount++;
 }
 
+void tListAddLast (tList *list,tNode * node)
+{
+	node->nextNode = &(list->headNode);
+	node->preNode = list->lastNode;
+	
+	list->lastNode->nextNode = node;
+	list->lastNode = node;
+	list->nodeCount++;
+}
+
 tNode *tListRemoveFirst (tList *list)
 {
 	tNode *node = (tNode *)0;

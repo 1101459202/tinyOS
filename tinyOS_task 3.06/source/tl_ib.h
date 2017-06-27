@@ -40,5 +40,6 @@ void tListAddFirst (tList *list,tNode * node);
 tNode *tListRemoveFirst (tList *list);
 void tListInsertAfter (tList *list,tNode * nodeAfter,tNode * nodeToInsert);
 void tListRemove (tList *list,tNode *node);
+void tListAddLast (tList *list,tNode * node);
 
 #endif

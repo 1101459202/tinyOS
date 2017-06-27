@@ -37,7 +37,10 @@ void idleTaskEntry (void * param);
 void tTaskSchedInit (void);
 void tTaskSchedRdy (tTask *task);
 void tTimeTaskWait(tTask *task,uint32_t ticks);
-
+void tTaskschedUnRdy (tTask *task);//任务删除就绪列表
+	
+tList tTaskDelayedList;
+	
 void tTaskSchedInit (void)
 {
 	schedLockCount = 0;
@@ -71,7 +74,6 @@ void tTaskSchedEnable(void)
 	tTaskExitCritical(status);
 }
 
-tList tTaskDelayedList;
 
 void tTaskInit (tTask * task,void (*entry)(void *),void * param,uint32_t prio,tTaskStack * stack)//堆栈初始化
 {
@@ -123,13 +125,13 @@ void tSetSysTickPeriod (uint32_t ms)//初始化定时器
 
 void tTaskDelay(uint32_t delay)//延时函数
 {
-	uint32_t status =tTaskEnterCritical();
+	uint32_t status =tTaskEnterCritical();//进入临界区
 	
 	tTimeTaskWait(currentTask,delay);
 	
-	tTaskSchedRdy(currentTask);
+	tTaskschedUnRdy(currentTask);//清除就绪位
 	
-	tTaskExitCritical(status);
+	tTaskExitCritical(status);//退出临界区
 	
 	tTaskSched();//任务调度函数
 }
@@ -138,8 +140,6 @@ int task1Flag;
 int task2Flag;
 int firstSet;
 
-tList list;
-tNode node[8];
 void task1Entry (void * param)
 {
 	tSetSysTickPeriod (10);
@@ -179,22 +179,22 @@ void SysTick_Handler()//中断时间到调用
    	tTaskSystemTickHandler();//时间处理函数
 }
 
-void tTaskDelayedInit (void)
+void tTaskDelayedInit (void)//初始化延时队列
 {
 	tListInit(&tTaskDelayedList);
 }
 
-void tTimeTaskWait(tTask *task,uint32_t ticks)
+void tTimeTaskWait(tTask *task,uint32_t ticks)//任务插入到延时队列尾部
 {
 	task->delayTicks = ticks;
-	tListAddFirst(&tTaskDelayedList,&(task->delayNode));
+	tListAddLast(&tTaskDelayedList,&(task->delayNode));
 	task->state |= TINYOS_TASK_STATE_DELAYD;
 }
 
-void tTimeWakeUp (tTask *task)
+void tTimeWakeUp (tTask *task)//任务从延时队列删除
 {
 	tListRemove(&tTaskDelayedList,&(task->delayNode));
-	task->state &= TINYOS_TASK_STATE_DELAYD;
+	task->state &= ~TINYOS_TASK_STATE_DELAYD;
 }
 
 void tTaskSystemTickHandler()//时间处理函数
@@ -202,32 +202,33 @@ void tTaskSystemTickHandler()//时间处理函数
 	tNode * node;
 	
 	uint32_t status =tTaskEnterCritical();
-	
-	for (node = tTaskDelayedList.headNode.nextNode; node != &(tTaskDelayedList.headNode) ;node = node->nextNode)
+	//检查所有任务中delayTicks数，如果不为0就减1
+	for (node = tTaskDelayedList.headNode.nextNode; node != &(tTaskDelayedList.headNode); node = node->nextNode)
 	{
-		tTask * task = tNodeParent(node,tTask,delayNode);
+		tTask * task = (tTask *)tNodeParent(node,tTask,delayNode);
 		
 		if (--task->delayTicks == 0)
 		{
+			//将任务从延时队列中移除
 			tTimeWakeUp(task);
-			
+			//将任务恢复到就绪状态
 			tTaskSchedRdy(task);
 		}
 	}
-
+	//退出临界区
 	tTaskExitCritical(status);
-	
+	//可能有任务延时完毕(delayTicks == 0)进行一次调用
 	tTaskSched();//任务调度函数
 	
 }
 
-void tTaskSchedRdy (tTask *task)
+void tTaskSchedRdy (tTask *task)//任务插入就绪列表 用于当任务延时完成之后从延时列表溢出
 {
 	taskTable[task->prio] = task;
 	tBitmapSet(&taskPrioBitmap,task->prio);
 }
 
-void tTaskschedUnRdy (tTask *task)
+void tTaskschedUnRdy (tTask *task)//任务删除就绪列表
 {
 	taskTable[task->prio] = (tTask *)0;
 	tBitmapClear(&taskPrioBitmap,task->prio);
@@ -245,14 +246,14 @@ void tTaskSched()//任务调度函数
 		return;
 	}
 	
-	tempTask = tTaskHighestReady();
+	tempTask = tTaskHighestReady();//获取最高优先级任务
 	if(tempTask != currentTask)
 	{
 		nextTask = tempTask;
-		tTaskSwitch();
+		tTaskSwitch();//触发penSV异常
 	}
 	
-	tTaskExitCritical(status);
+	tTaskExitCritical(status);//退出临界区
 }
 
 
