@@ -15,24 +15,24 @@ __asm void PendSV_Handler(void)
 	IMPORT nextTask
 	
 	MRS R0,PSP
-	CBZ R0,PendSV_nosave
-	
-	STMDB R0!,{R4-R11}
+	CBZ R0,PendSV_nosave //比较，为零则跳转
+												/************ 第一次不执行**************/
+	STMDB R0!,{R4-R11} 		//保存当前任务堆栈
 	LDR R1,=currentTask
 	LDR R1,[R1]
-	STR R0,[R1]
-	
-PendSV_nosave
+	STR R0,[R1]						//保存堆栈指针
+												//任务切换
+PendSV_nosave          //current = nextTask
 	LDR R0,=currentTask
 	LDR R1,=nextTask
 	LDR R2,[R1]
-	STR R2,[R0]
+	STR R2,[R0] 
 	
-	LDR R0,[R2]
+	LDR R0,[R2]			    	//current 中取出堆栈地址
 	
-	LDMIA R0!,{R4-R11}
+	LDMIA R0!,{R4-R11}    //恢复堆栈
 	
-	MSR PSP,R0
+	MSR PSP,R0           //切换current堆栈
 	ORR LR,LR,#0x04
 	BX LR
 }
